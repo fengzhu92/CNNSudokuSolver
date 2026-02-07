@@ -10,7 +10,7 @@ import PIL.ImageOps
 import cv2
 import numpy as np
 from PIL import Image
-from keras.models import load_model
+from tensorflow.keras.models import load_model
 from PyQt5 import QtCore, QtGui, QtWidgets
 
 
@@ -158,7 +158,7 @@ class Ui_MainWindow(object):
         rects = []
         rectLengths = []
         _, threshold = cv2.threshold(img, 180, 255, cv2.THRESH_BINARY)
-        _, contours, _ = cv2.findContours(threshold, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        contours, _ = cv2.findContours(threshold, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         for cnt in contours:
             approx = cv2.approxPolyDP(cnt, 0.01 * cv2.arcLength(cnt, True), True)
             if len(approx) == 4:
