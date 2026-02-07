@@ -10,7 +10,6 @@ from tensorflow.keras.models import load_model
 
 # Paths and config
 MODEL_PATH = "model/mnistCNN.h5"
-NO_IMAGE_PATH = "pics/no-image-icon.png"
 INTERMEDIATE_DIR = "intermediate"
 CELL_SIZE = 28
 EMPTY_CELL_THRESHOLD = 20
@@ -153,18 +152,24 @@ class Ui_MainWindow:
         self.appTitleLabel.setFont(QtGui.QFont("", 23, QtGui.QFont.Bold))
         self.appTitleLabel.setAlignment(QtCore.Qt.AlignCenter)
 
-        # Buttons
+        # Buttons (centered: run + solve + reset)
+        btn_y, btn_h, gap = 140, 30, 9
+        run_w, solve_w, reset_w = 221, 160, 80
+        total_w = run_w + gap + solve_w + gap + reset_w
+        btn_start_x = (760 - total_w) // 2
         self.runBtn = QtWidgets.QPushButton(self.centralwidget)
-        self.runBtn.setGeometry(250, 140, 221, 30)
+        self.runBtn.setGeometry(btn_start_x, btn_y, run_w, btn_h)
         self.runBtn.setEnabled(False)
         self.solveBtn = QtWidgets.QPushButton(self.centralwidget)
-        self.solveBtn.setGeometry(370, 455, 160, 30)
+        self.solveBtn.setGeometry(btn_start_x + run_w + gap, btn_y, solve_w, btn_h)
         self.solveBtn.setEnabled(False)
+        self.resetBtn = QtWidgets.QPushButton(self.centralwidget)
+        self.resetBtn.setGeometry(btn_start_x + run_w + gap + solve_w + gap, btn_y, reset_w, btn_h)
 
-        # Image displays
-        self._init_image_label("originalImage", 70, 200)
-        self._init_image_label("interImage1", 70, 460)
-        self._init_image_label("interImage2", 370, 200)
+        # Image displays (image + caption above)
+        self._init_image_with_caption("originalImage", "originalImageCaption", 70, 200, "")
+        self._init_image_with_caption("interImage1", "interImage1Caption", 70, 480, "")
+        self._init_image_with_caption("interImage2", "interImage2Caption", 370, 200, "")
 
         # Grid for digits
         grid_widget = QtWidgets.QWidget(self.centralwidget)
@@ -172,26 +177,45 @@ class Ui_MainWindow:
         self.grid = QtWidgets.QGridLayout(grid_widget)
         self.grid.setContentsMargins(0, 0, 0, 0)
 
-    def _init_image_label(self, name, x, y):
-        label = QtWidgets.QLabel(self.centralwidget)
-        label.setGeometry(x, y, 250, 250)
-        label.setPixmap(QtGui.QPixmap(NO_IMAGE_PATH))
-        label.setScaledContents(True)
-        setattr(self, name, label)
+    def _init_image_with_caption(self, img_name, cap_name, x, y, caption):
+        cap = QtWidgets.QLabel(self.centralwidget)
+        cap.setGeometry(x, y - 22, 250, 20)
+        cap.setText(caption)
+        setattr(self, cap_name, cap)
+        img = QtWidgets.QLabel(self.centralwidget)
+        img.setGeometry(x, y, 250, 250)
+        img.setScaledContents(True)
+        setattr(self, img_name, img)
 
     def _connect_signals(self):
         self.browserBtn.clicked.connect(self._open_file_dialog)
         self.runBtn.clicked.connect(self._recognize_puzzle)
         self.solveBtn.clicked.connect(self._solve_puzzle)
+        self.resetBtn.clicked.connect(self._reset)
 
     def retranslateUi(self, MainWindow):
         _ = QtCore.QCoreApplication.translate
-        MainWindow.setWindowTitle(_("MainWindow", "MainWindow"))
+        MainWindow.setWindowTitle(_("MainWindow", "Sudoku Solver"))
         self.filePath.setText(_("MainWindow", "FileName:"))
         self.browserBtn.setText(_("MainWindow", "Browse"))
         self.runBtn.setText(_("MainWindow", "Recognize"))
         self.solveBtn.setText(_("MainWindow", "Solve!"))
+        self.resetBtn.setText(_("MainWindow", "Reset"))
         self.appTitleLabel.setText(_("MainWindow", "Smart Sudoku Solver"))
+
+    def _reset(self):
+        """Clear all state and reset UI to initial."""
+        self.puzzle = ""
+        self.inputImage = None
+        self.lineEdit.clear()
+        self.runBtn.setEnabled(False)
+        self.solveBtn.setEnabled(False)
+        for name in ("originalImage", "interImage1", "interImage2"):
+            getattr(self, name).clear()
+            getattr(self, name).repaint()
+        for cap in ("originalImageCaption", "interImage1Caption", "interImage2Caption"):
+            getattr(self, cap).setText("")
+        self._clear_grid()
 
     def _open_file_dialog(self):
         path, _ = QtWidgets.QFileDialog.getOpenFileName(
@@ -201,6 +225,8 @@ class Ui_MainWindow:
             self.inputImage = path
             self.lineEdit.setText(path)
             self.runBtn.setEnabled(True)
+            self.solveBtn.setEnabled(False)
+            self.originalImageCaption.setText("Original")
             self.originalImage.setPixmap(QtGui.QPixmap(path))
             self.originalImage.repaint()
 
@@ -228,14 +254,18 @@ class Ui_MainWindow:
 
             digits = recognize_digits(grid_img, model)
             self.puzzle = digits
+            self.runBtn.setEnabled(False)
             self.solveBtn.setEnabled(True)
             self._display_digits(digits, empty_color="green")
-            self.interImage1.setPixmap(QtGui.QPixmap(f"{INTERMEDIATE_DIR}/img1.jpg"))
-            self.interImage2.setPixmap(QtGui.QPixmap(f"{INTERMEDIATE_DIR}/img2.jpg"))
+            self.interImage1Caption.setText("Extracted Grid")
+            self.interImage2Caption.setText("Detected Game")
+            self.interImage1.setPixmap(QtGui.QPixmap(f"{INTERMEDIATE_DIR}/img2.jpg"))
+            self.interImage2.setPixmap(QtGui.QPixmap(f"{INTERMEDIATE_DIR}/img1.jpg"))
             self.interImage1.repaint()
             self.interImage2.repaint()
 
         except (ValueError, FileNotFoundError) as e:
+            self.solveBtn.setEnabled(False)
             QtWidgets.QMessageBox.warning(
                 None, "Error", f"Could not recognize puzzle: {e}"
             )
@@ -247,13 +277,20 @@ class Ui_MainWindow:
             if w:
                 w.setParent(None)
 
-    def _display_digits(self, digits, empty_color="green"):
-        """Fill grid with digit labels (empty cells get background color)."""
+    def _display_digits(self, digits, empty_color="green", original_digits=None):
+        """Fill grid with digit labels. If original_digits given, highlight answer cells."""
         self._clear_grid()
         for idx, (i, j) in enumerate((r, c) for r in range(9) for c in range(9)):
             label = QtWidgets.QLabel()
             if digits[idx] != "0":
                 label.setText(digits[idx])
+                # Highlight cells that were filled by the solver (originally empty)
+                if original_digits and original_digits[idx] == "0":
+                    label.setStyleSheet(
+                        "background-color: #b3e5fc; font-weight: bold; color: #01579b;"
+                    )
+                else:
+                    label.setStyleSheet("")
             else:
                 label.setStyleSheet(f"background-color:{empty_color}")
             label.setAlignment(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignVCenter)
@@ -262,10 +299,9 @@ class Ui_MainWindow:
     def _solve_puzzle(self):
         grid = np.reshape([int(c) for c in self.puzzle], (9, 9)).tolist()
         if solve_sudoku(grid):
-            self._display_digits(
-                "".join(str(grid[i][j]) for i in range(9) for j in range(9)),
-                empty_color="transparent"
-            )
+            solved = "".join(str(grid[i][j]) for i in range(9) for j in range(9))
+            self._display_digits(solved, empty_color="transparent", original_digits=self.puzzle)
+            self.solveBtn.setEnabled(False)
         else:
             QtWidgets.QMessageBox.warning(None, "Error", "No solution found.")
 
