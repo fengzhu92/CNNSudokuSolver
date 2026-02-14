@@ -1,6 +1,9 @@
 # -*- coding: utf-8 -*-
 """Smart Sudoku Solver - CNN-based puzzle recognition with PyQt5 UI."""
 
+import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # Suppress TF warnings
+
 import cv2
 import numpy as np
 import PIL.ImageOps
@@ -71,11 +74,20 @@ def recognize_digits(grid_image, model):
             cell = cell.crop((5, 5, cell_w - 5, cell_w - 5))
             cell = cell.resize((CELL_SIZE, CELL_SIZE))
 
-            arr = np.array(cell).reshape(1, CELL_SIZE, CELL_SIZE, 1)
-            if arr.any(axis=-1).sum() < EMPTY_CELL_THRESHOLD:
+            arr = np.array(cell, dtype=np.float32)
+            # Ensure correct shape: (1, 28, 28, 1)
+            if arr.ndim == 2:
+                arr = arr.reshape(1, CELL_SIZE, CELL_SIZE, 1)
+            elif arr.ndim == 3:
+                arr = arr[:, :, 0].reshape(1, CELL_SIZE, CELL_SIZE, 1)
+            
+            # Normalize pixel values
+            arr = arr / 255.0
+            
+            if arr.any(axis=-1).sum() < EMPTY_CELL_THRESHOLD / 255.0:
                 result.append("0")
             else:
-                pred = model.predict(arr)
+                pred = model.predict(arr, verbose=0)
                 result.append(str(pred.argmax()))
 
     return "".join(result)
