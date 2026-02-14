@@ -10,6 +10,11 @@ A desktop app that uses computer vision and a CNN to recognize Sudoku puzzles fr
 - Solve the puzzle using backtracking
 - Highlight answer digits vs given clues
 
+<img width="774" height="789" alt="Screenshot 2026-02-14 at 1 20 37 PM" src="https://github.com/user-attachments/assets/6f29ea8a-7d81-4329-8dea-83e919b2940e" />
+<img width="774" height="790" alt="Screenshot 2026-02-14 at 1 20 59 PM" src="https://github.com/user-attachments/assets/8e835dd7-0afc-4fd6-a950-cff572fc40f1" />
+
+
+
 ## Requirements
 
 - Python 3.9+
